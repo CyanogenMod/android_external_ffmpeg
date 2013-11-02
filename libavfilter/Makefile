@@ -288,5 +288,7 @@ TESTPROGS = drawutils filtfmts formats
 
 TOOLS-$(CONFIG_LIBZMQ) += zmqsend
 
+ifndef ANDROID_BUILDSPEC
 clean::
 	$(RM) $(CLEANSUFFIXES:%=libavfilter/libmpcodecs/%)
+endif
