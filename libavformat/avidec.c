@@ -377,6 +377,46 @@ static void avi_read_nikon(AVFormatContext *s, uint64_t end)
     }
 }
 
+static int calculate_bitrate(AVFormatContext *s)
+{
+    AVIContext *avi = s->priv_data;
+    int i, j;
+    int64_t lensum = 0;
+    int64_t maxpos = 0;
+
+    for (i = 0; i<s->nb_streams; i++) {
+        int64_t len = 0;
+        AVStream *st = s->streams[i];
+
+        if (!st->nb_index_entries)
+            continue;
+
+        for (j = 0; j < st->nb_index_entries; j++)
+            len += st->index_entries[j].size;
+        maxpos = FFMAX(maxpos, st->index_entries[j-1].pos);
+        lensum += len;
+    }
+    if (maxpos < avi->io_fsize*9/10) // index doesnt cover the whole file
+        return 0;
+    if (lensum*9/10 > maxpos || lensum < maxpos*9/10) // frame sum and filesize mismatch
+        return 0;
+
+    for (i = 0; i<s->nb_streams; i++) {
+        int64_t len = 0;
+        AVStream *st = s->streams[i];
+        int64_t duration;
+
+        for (j = 0; j < st->nb_index_entries; j++)
+            len += st->index_entries[j].size;
+
+        if (st->nb_index_entries < 2 || st->codec->bit_rate > 0)
+            continue;
+        duration = st->index_entries[j-1].timestamp - st->index_entries[0].timestamp;
+        st->codec->bit_rate = av_rescale(8*len, st->time_base.den, duration * st->time_base.num);
+    }
+    return 1;
+}
+
 static int avi_read_header(AVFormatContext *s)
 {
     AVIContext *avi = s->priv_data;
@@ -861,6 +901,7 @@ fail:
 
     if (!avi->index_loaded && pb->seekable)
         avi_load_index(s);
+    calculate_bitrate(s);
     avi->index_loaded    |= 1;
     avi->non_interleaved |= guess_ni_flag(s) | (s->flags & AVFMT_FLAG_SORT_DTS);
 
@@ -1313,7 +1354,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
                 AVIndexEntry *e;
                 int index;
 
-                index = av_index_search_timestamp(st, ast->frame_offset, 0);
+                index = av_index_search_timestamp(st, ast->frame_offset, AVSEEK_FLAG_ANY);
                 e     = &st->index_entries[index];
 
                 if (index >= 0 && e->timestamp == ast->frame_offset) {
@@ -1491,6 +1532,7 @@ static int guess_ni_flag(AVFormatContext *s)
         return 0;
     for (min_pos=pos=0; min_pos!=INT64_MAX; pos= min_pos+1LU) {
         int64_t max_dts = INT64_MIN/2, min_dts= INT64_MAX/2;
+        int64_t max_buffer = 0;
         min_pos = INT64_MAX;
 
         for (i=0; i<s->nb_streams; i++) {
@@ -1503,10 +1545,20 @@ static int guess_ni_flag(AVFormatContext *s)
                 min_dts = FFMIN(min_dts, av_rescale_q(st->index_entries[idx[i]].timestamp/FFMAX(ast->sample_size, 1), st->time_base, AV_TIME_BASE_Q));
                 min_pos = FFMIN(min_pos, st->index_entries[idx[i]].pos);
             }
-            if (idx[i])
-                max_dts = FFMAX(max_dts, av_rescale_q(st->index_entries[idx[i]-1].timestamp/FFMAX(ast->sample_size, 1), st->time_base, AV_TIME_BASE_Q));
         }
-        if (max_dts - min_dts > 2*AV_TIME_BASE) {
+        for (i=0; i<s->nb_streams; i++) {
+            AVStream *st = s->streams[i];
+            AVIStream *ast = st->priv_data;
+
+            if (idx[i] && min_dts != INT64_MAX/2) {
+                int64_t dts = av_rescale_q(st->index_entries[idx[i]-1].timestamp/FFMAX(ast->sample_size, 1), st->time_base, AV_TIME_BASE_Q);
+                max_dts = FFMAX(max_dts, dts);
+                max_buffer = FFMAX(max_buffer, av_rescale(dts - min_dts, st->codec->bit_rate, AV_TIME_BASE));
+            }
+        }
+        if (max_dts - min_dts > 2*AV_TIME_BASE ||
+            max_buffer > 1024 * 1024 * 8 *8
+        ) {
             av_free(idx);
             return 1;
         }
@@ -1648,8 +1700,7 @@ static int avi_read_seek(AVFormatContext *s, int stream_index,
             continue;
 
 //        av_assert1(st2->codec->block_align);
-        av_assert0((int64_t)st2->time_base.num * ast2->rate ==
-                   (int64_t)st2->time_base.den * ast2->scale);
+        av_assert0(fabs(av_q2d(st2->time_base) - ast2->scale / (double)ast2->rate) < av_q2d(st2->time_base) * 0.00000001);
         index = av_index_search_timestamp(st2,
                                           av_rescale_q(timestamp,
                                                        st->time_base,

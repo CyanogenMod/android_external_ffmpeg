@@ -452,6 +452,18 @@ static int alloc_picture(H264Context *h, Picture *pic)
             pic->hwaccel_picture_private = pic->hwaccel_priv_buf->data;
         }
     }
+    if (!h->avctx->hwaccel && CONFIG_GRAY && h->flags & CODEC_FLAG_GRAY && pic->f.data[2]) {
+        int h_chroma_shift, v_chroma_shift;
+        av_pix_fmt_get_chroma_sub_sample(pic->f.format,
+                                         &h_chroma_shift, &v_chroma_shift);
+
+        for(i=0; i<FF_CEIL_RSHIFT(h->avctx->height, v_chroma_shift); i++) {
+            memset(pic->f.data[1] + pic->f.linesize[1]*i,
+                   0x80, FF_CEIL_RSHIFT(h->avctx->width, h_chroma_shift));
+            memset(pic->f.data[2] + pic->f.linesize[2]*i,
+                   0x80, FF_CEIL_RSHIFT(h->avctx->width, h_chroma_shift));
+        }
+    }
 
     if (!h->qscale_table_pool) {
         ret = init_table_pools(h);
@@ -1787,6 +1799,7 @@ static int decode_update_thread_context(AVCodecContext *dst,
         memset(&h->mb, 0, sizeof(h->mb));
         memset(&h->mb_luma_dc, 0, sizeof(h->mb_luma_dc));
         memset(&h->mb_padding, 0, sizeof(h->mb_padding));
+        memset(&h->cur_pic, 0, sizeof(h->cur_pic));
 
         h->avctx             = dst;
         h->DPB               = NULL;
@@ -3358,6 +3371,17 @@ int ff_set_ref_count(H264Context *h)
     return 0;
 }
 
+static enum AVPixelFormat non_j_pixfmt(enum AVPixelFormat a)
+{
+    switch (a) {
+    case AV_PIX_FMT_YUVJ420P: return AV_PIX_FMT_YUV420P;
+    case AV_PIX_FMT_YUVJ422P: return AV_PIX_FMT_YUV422P;
+    case AV_PIX_FMT_YUVJ444P: return AV_PIX_FMT_YUV444P;
+    default:
+        return a;
+    }
+}
+
 /**
  * Decode a slice header.
  * This will also call ff_MPV_common_init() and frame_start() as needed.
@@ -3480,7 +3504,7 @@ static int decode_slice_header(H264Context *h, H264Context *h0)
                      || h->mb_width  != h->sps.mb_width
                      || h->mb_height != h->sps.mb_height * (2 - h->sps.frame_mbs_only_flag)
                     ));
-    if (h0->avctx->pix_fmt != get_pixel_format(h0, 0))
+    if (non_j_pixfmt(h0->avctx->pix_fmt) != non_j_pixfmt(get_pixel_format(h0, 0)))
         must_reinit = 1;
 
     h->mb_width  = h->sps.mb_width;
@@ -4831,6 +4855,7 @@ again:
                 if(!idr_cleared)
                     idr(h); // FIXME ensure we don't lose some frames if there is reordering
                 idr_cleared = 1;
+                h->has_recovery_point = 1;
             case NAL_SLICE:
                 init_get_bits(&hx->gb, ptr, bit_length);
                 hx->intra_gb_ptr      =

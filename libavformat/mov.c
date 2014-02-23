@@ -1781,7 +1781,7 @@ static int mov_read_stss(MOVContext *c, AVIOContext *pb, MOVAtom atom)
     if (!entries)
     {
         sc->keyframe_absent = 1;
-        if (!st->need_parsing)
+        if (!st->need_parsing && st->codec->codec_type == AVMEDIA_TYPE_VIDEO)
             st->need_parsing = AVSTREAM_PARSE_HEADERS;
         return 0;
     }
@@ -2144,6 +2144,11 @@ static void mov_build_index(MOVContext *mov, AVStream *st)
                         rap_group_index++;
                     }
                 }
+                if (sc->keyframe_absent
+                    && !sc->stps_count
+                    && !rap_group_present
+                    && st->codec->codec_type == AVMEDIA_TYPE_AUDIO)
+                     keyframe = 1;
                 if (keyframe)
                     distance = 0;
                 sample_size = sc->stsz_sample_size > 0 ? sc->stsz_sample_size : sc->sample_sizes[current_sample];

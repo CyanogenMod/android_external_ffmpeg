@@ -546,8 +546,18 @@ static int mkv_write_codecprivate(AVFormatContext *s, AVIOContext *pb, AVCodecCo
         if (qt_id) {
             if (!codec->codec_tag)
                 codec->codec_tag = ff_codec_get_tag(ff_codec_movvideo_tags, codec->codec_id);
-            if (codec->extradata_size)
+            if (codec->extradata_size) {
+                if (   ff_codec_get_id(ff_codec_movvideo_tags, codec->codec_tag) == codec->codec_id
+                    && ff_codec_get_id(ff_codec_movvideo_tags, AV_RL32(codec->extradata+4)) != codec->codec_id
+                ) {
+                    int i;
+                    avio_wb32(dyn_cp, 0x5a + codec->extradata_size);
+                    avio_wl32(dyn_cp, codec->codec_tag);
+                    for(i=0; i<0x5a-8; i++)
+                        avio_w8(dyn_cp, 0);
+                }
                 avio_write(dyn_cp, codec->extradata, codec->extradata_size);
+            }
         } else {
             if (!codec->codec_tag)
                 codec->codec_tag = ff_codec_get_tag(ff_codec_bmp_tags, codec->codec_id);
@@ -1047,7 +1057,7 @@ static int mkv_write_header(AVFormatContext *s)
     AVIOContext *pb = s->pb;
     ebml_master ebml_header, segment_info;
     AVDictionaryEntry *tag;
-    int ret, i;
+    int ret, i, version = 2;
 
     if (!strcmp(s->oformat->name, "webm")) mkv->mode = MODE_WEBM;
     else                                   mkv->mode = MODE_MATROSKAv2;
@@ -1055,7 +1065,12 @@ static int mkv_write_header(AVFormatContext *s)
     if (s->avoid_negative_ts < 0)
         s->avoid_negative_ts = 1;
 
-    for (i = 0; i < s->nb_streams; i++)
+    if (mkv->mode != MODE_WEBM ||
+        av_dict_get(s->metadata, "stereo_mode", NULL, 0) ||
+        av_dict_get(s->metadata, "alpha_mode", NULL, 0))
+        version = 4;
+
+    for (i = 0; i < s->nb_streams; i++) {
         if (s->streams[i]->codec->codec_id == AV_CODEC_ID_ATRAC3 ||
             s->streams[i]->codec->codec_id == AV_CODEC_ID_COOK ||
             s->streams[i]->codec->codec_id == AV_CODEC_ID_RA_288 ||
@@ -1067,6 +1082,11 @@ static int mkv_write_header(AVFormatContext *s)
                    avcodec_get_name(s->streams[i]->codec->codec_id));
             return AVERROR_PATCHWELCOME;
         }
+        if (s->streams[i]->codec->codec_id == AV_CODEC_ID_OPUS ||
+            av_dict_get(s->streams[i]->metadata, "stereo_mode", NULL, 0) ||
+            av_dict_get(s->streams[i]->metadata, "alpha_mode", NULL, 0))
+            version = 4;
+    }
 
     mkv->tracks = av_mallocz(s->nb_streams * sizeof(*mkv->tracks));
     if (!mkv->tracks)
@@ -1078,7 +1098,7 @@ static int mkv_write_header(AVFormatContext *s)
     put_ebml_uint   (pb, EBML_ID_EBMLMAXIDLENGTH    ,           4);
     put_ebml_uint   (pb, EBML_ID_EBMLMAXSIZELENGTH  ,           8);
     put_ebml_string (pb, EBML_ID_DOCTYPE            , s->oformat->name);
-    put_ebml_uint   (pb, EBML_ID_DOCTYPEVERSION     ,           4);
+    put_ebml_uint   (pb, EBML_ID_DOCTYPEVERSION     ,     version);
     put_ebml_uint   (pb, EBML_ID_DOCTYPEREADVERSION ,           2);
     end_ebml_master(pb, ebml_header);
 
