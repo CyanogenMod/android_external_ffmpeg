@@ -12,7 +12,7 @@ OBJS-$(CONFIG_RV40_DECODER)             += aarch64/rv40dsp_init_aarch64.o
 OBJS-$(CONFIG_VC1_DECODER)              += aarch64/vc1dsp_init_aarch64.o
 OBJS-$(CONFIG_VORBIS_DECODER)           += aarch64/vorbisdsp_init.o
 
-ARMV8-OBJS-$(CONFIG_VIDEODSP)           += aarch64/videodsp.o
+OBJS-$(CONFIG_VIDEODSP)                 += aarch64/videodsp.o
 
 NEON-OBJS-$(CONFIG_FFT)                 += aarch64/fft_neon.o
 NEON-OBJS-$(CONFIG_H264CHROMA)          += aarch64/h264cmc_neon.o
