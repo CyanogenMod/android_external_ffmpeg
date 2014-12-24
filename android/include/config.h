@@ -17,7 +17,6 @@
 #define SLIBSUF ".so"
 #define HAVE_MMX2 HAVE_MMXEXT
 #define SWS_MAX_FILTER_SIZE 256
-#define ARCH_AARCH64 0
 #define ARCH_ALPHA 0
 #ifdef ARCH_ARM
 #undef ARCH_ARM
