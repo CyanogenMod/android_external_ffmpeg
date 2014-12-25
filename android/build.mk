@@ -97,5 +97,6 @@ LOCAL_CFLAGS += \
 	-Werror=return-type -Werror=vla -Wformat -Wno-maybe-uninitialized
 
 LOCAL_LDFLAGS := -Wl,--no-fatal-warnings
+LOCAL_ARM_MODE := arm
 
 LOCAL_SHARED_LIBRARIES := $(sort $(FFLIBS-yes:%=lib%) $(FFLIBS:%=lib%))
