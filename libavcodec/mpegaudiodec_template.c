@@ -406,7 +406,6 @@ static av_cold void decode_init_static(void)
     }
 }
 
-#if USE_FLOATS
 static av_cold int decode_close(AVCodecContext * avctx)
 {
     MPADecodeContext *s = avctx->priv_data;
@@ -414,7 +413,6 @@ static av_cold int decode_close(AVCodecContext * avctx)
 
     return 0;
 }
-#endif
 
 static av_cold int decode_init(AVCodecContext * avctx)
 {
@@ -428,9 +426,11 @@ static av_cold int decode_init(AVCodecContext * avctx)
 
     s->avctx = avctx;
 
+#if USE_FLOATS
     s->fdsp = avpriv_float_dsp_alloc(avctx->flags & CODEC_FLAG_BITEXACT);
     if (!s->fdsp)
         return AVERROR(ENOMEM);
+#endif
 
     ff_mpadsp_init(&s->mpadsp);
 

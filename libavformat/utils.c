@@ -53,6 +53,9 @@
 #include "riff.h"
 #include "url.h"
 
+#include "libavutil/ffversion.h"
+const char av_format_ffversion[] = "FFmpeg version " FFMPEG_VERSION;
+
 /**
  * @file
  * various utility functions for use within FFmpeg
@@ -594,6 +597,8 @@ static int update_wrap_reference(AVFormatContext *s, AVStream *st, int stream_in
         int default_stream_index = av_find_default_stream_index(s);
         if (s->streams[default_stream_index]->pts_wrap_reference == AV_NOPTS_VALUE) {
             for (i = 0; i < s->nb_streams; i++) {
+                if (av_find_program_from_stream(s, NULL, i))
+                    continue;
                 s->streams[i]->pts_wrap_reference = pts_wrap_reference;
                 s->streams[i]->pts_wrap_behavior = pts_wrap_behavior;
             }
