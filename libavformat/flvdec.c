@@ -459,11 +459,11 @@ static int amf_parse_object(AVFormatContext *s, AVStream *astream,
     }
 
     if (key) {
+        acodec = astream ? astream->codec : NULL;
+        vcodec = vstream ? vstream->codec : NULL;
+
         // stream info doesn't live any deeper than the first object
         if (depth == 1) {
-            acodec = astream ? astream->codec : NULL;
-            vcodec = vstream ? vstream->codec : NULL;
-
             if (amf_type == AMF_DATA_TYPE_NUMBER ||
                 amf_type == AMF_DATA_TYPE_BOOL) {
                 if (!strcmp(key, "duration"))
@@ -623,7 +623,7 @@ static int flv_read_close(AVFormatContext *s)
 
 static int flv_get_extradata(AVFormatContext *s, AVStream *st, int size)
 {
-    av_free(st->codec->extradata);
+    av_freep(&st->codec->extradata);
     if (ff_get_extradata(st->codec, s->pb, size) < 0)
         return AVERROR(ENOMEM);
     return 0;
