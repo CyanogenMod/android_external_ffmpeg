@@ -1080,7 +1080,7 @@ static void ebml_free(EbmlSyntax *syntax, void *data)
                 for (j = 0; j < list->nb_elem;
                      j++, ptr += syntax[i].list_elem_size)
                     ebml_free(syntax[i].def.n, ptr);
-                av_free(list->elem);
+                av_freep(&list->elem);
             } else
                 ebml_free(syntax[i].def.n, data_off);
         default:
@@ -1414,13 +1414,17 @@ static void matroska_execute_seekhead(MatroskaDemuxContext *matroska)
     EbmlList *seekhead_list = &matroska->seekhead;
     int64_t before_pos = avio_tell(matroska->ctx->pb);
     int i;
+    int nb_elem;
 
     // we should not do any seeking in the streaming case
     if (!matroska->ctx->pb->seekable ||
         (matroska->ctx->flags & AVFMT_FLAG_IGNIDX))
         return;
 
-    for (i = 0; i < seekhead_list->nb_elem; i++) {
+    // do not read entries that are added while parsing seekhead entries
+    nb_elem = seekhead_list->nb_elem;
+
+    for (i = 0; i < nb_elem; i++) {
         MatroskaSeekhead *seekhead = seekhead_list->elem;
         if (seekhead[i].pos <= before_pos)
             continue;
@@ -2130,7 +2134,7 @@ static int matroska_deliver_packet(MatroskaDemuxContext *matroska,
 {
     if (matroska->num_packets > 0) {
         memcpy(pkt, matroska->packets[0], sizeof(AVPacket));
-        av_free(matroska->packets[0]);
+        av_freep(&matroska->packets[0]);
         if (matroska->num_packets > 1) {
             void *newpackets;
             memmove(&matroska->packets[0], &matroska->packets[1],
@@ -2161,7 +2165,7 @@ static void matroska_clear_queue(MatroskaDemuxContext *matroska)
         int n;
         for (n = 0; n < matroska->num_packets; n++) {
             av_free_packet(matroska->packets[n]);
-            av_free(matroska->packets[n]);
+            av_freep(&matroska->packets[n]);
         }
         av_freep(&matroska->packets);
         matroska->num_packets = 0;
@@ -2999,7 +3003,7 @@ static int matroska_read_close(AVFormatContext *s)
 
     for (n = 0; n < matroska->tracks.nb_elem; n++)
         if (tracks[n].type == MATROSKA_TRACK_TYPE_AUDIO)
-            av_free(tracks[n].audio.buf);
+            av_freep(&tracks[n].audio.buf);
     ebml_free(matroska_cluster, &matroska->current_cluster);
     ebml_free(matroska_segment, matroska);
 
