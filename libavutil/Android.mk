@@ -10,6 +10,7 @@
 
 LOCAL_PATH := $(call my-dir)
 
+include $(CLEAR_VARS)
 FFMPEG_MULTILIB := 32
 include $(LOCAL_PATH)/../android/build.mk
 
@@ -18,7 +19,7 @@ LOCAL_MULTILIB := $(FFMPEG_MULTILIB)
 include $(BUILD_SHARED_LIBRARY)
 
 
-
+include $(CLEAR_VARS)
 FFMPEG_MULTILIB := 64
 include $(LOCAL_PATH)/../android/build.mk
 
