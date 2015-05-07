@@ -66,6 +66,9 @@
 #include "compat/os2threads.h"
 #endif
 
+#include "libavutil/ffversion.h"
+const char av_codec_ffversion[] = "FFmpeg version " FFMPEG_VERSION;
+
 #if HAVE_PTHREADS || HAVE_W32THREADS || HAVE_OS2THREADS
 static int default_lockmgr_cb(void **arg, enum AVLockOp op)
 {
@@ -243,7 +246,7 @@ int ff_set_sar(AVCodecContext *avctx, AVRational sar)
     int ret = av_image_check_sar(avctx->width, avctx->height, sar);
 
     if (ret < 0) {
-        av_log(avctx, AV_LOG_WARNING, "ignoring invalid SAR: %u/%u\n",
+        av_log(avctx, AV_LOG_WARNING, "ignoring invalid SAR: %d/%d\n",
                sar.num, sar.den);
         avctx->sample_aspect_ratio = (AVRational){ 0, 1 };
         return ret;
@@ -371,7 +374,7 @@ void avcodec_align_dimensions2(AVCodecContext *s, int *width, int *height,
     case AV_PIX_FMT_YUVJ411P:
     case AV_PIX_FMT_UYYVYY411:
         w_align = 32;
-        h_align = 8;
+        h_align = 16 * 2;
         break;
     case AV_PIX_FMT_YUV410P:
         if (s->codec_id == AV_CODEC_ID_SVQ1) {

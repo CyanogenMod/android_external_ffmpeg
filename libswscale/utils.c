@@ -611,14 +611,25 @@ static av_cold int initFilter(int16_t **outFilter, int32_t **filterPos,
         }
 
         if ((*filterPos)[i] + filterSize > srcW) {
-            int shift = (*filterPos)[i] + filterSize - srcW;
-            // move filter coefficients right to compensate for filterPos
-            for (j = filterSize - 2; j >= 0; j--) {
-                int right = FFMIN(j + shift, filterSize - 1);
-                filter[i * filterSize + right] += filter[i * filterSize + j];
-                filter[i * filterSize + j]      = 0;
+            int shift = (*filterPos)[i] + FFMIN(filterSize - srcW, 0);
+            int64_t acc = 0;
+
+            for (j = filterSize - 1; j >= 0; j--) {
+                if ((*filterPos)[i] + j >= srcW) {
+                    acc += filter[i * filterSize + j];
+                    filter[i * filterSize + j] = 0;
+                }
             }
-            (*filterPos)[i]= srcW - filterSize;
+            for (j = filterSize - 1; j >= 0; j--) {
+                if (j < shift) {
+                    filter[i * filterSize + j] = 0;
+                } else {
+                    filter[i * filterSize + j] = filter[i * filterSize + j - shift];
+                }
+            }
+
+            (*filterPos)[i]-= shift;
+            filter[i * filterSize + srcW - 1 - (*filterPos)[i]] += acc;
         }
     }
 
@@ -1166,7 +1177,7 @@ av_cold int sws_init_context(SwsContext *c, SwsFilter *srcFilter,
     c->chrDstW = FF_CEIL_RSHIFT(dstW, c->chrDstHSubSample);
     c->chrDstH = FF_CEIL_RSHIFT(dstH, c->chrDstVSubSample);
 
-    FF_ALLOC_OR_GOTO(c, c->formatConvBuffer, FFALIGN(srcW*2+78, 16) * 2, fail);
+    FF_ALLOCZ_OR_GOTO(c, c->formatConvBuffer, FFALIGN(srcW*2+78, 16) * 2, fail);
 
     c->srcBpc = 1 + desc_src->comp[0].depth_minus1;
     if (c->srcBpc < 8)

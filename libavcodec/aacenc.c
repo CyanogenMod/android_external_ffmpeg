@@ -165,7 +165,7 @@ static void put_audio_specific_config(AVCodecContext *avctx)
     PutBitContext pb;
     AACEncContext *s = avctx->priv_data;
 
-    init_put_bits(&pb, avctx->extradata, avctx->extradata_size*8);
+    init_put_bits(&pb, avctx->extradata, avctx->extradata_size);
     put_bits(&pb, 5, 2); //object type - AAC-LC
     put_bits(&pb, 4, s->samplerate_index); //sample rate index
     put_bits(&pb, 4, s->channels);
@@ -753,10 +753,10 @@ static av_cold int aac_encode_init(AVCodecContext *avctx)
 
     s->chan_map = aac_chan_configs[s->channels-1];
 
-    if (ret = dsp_init(avctx, s))
+    if ((ret = dsp_init(avctx, s)) < 0)
         goto fail;
 
-    if (ret = alloc_buffers(avctx, s))
+    if ((ret = alloc_buffers(avctx, s)) < 0)
         goto fail;
 
     avctx->extradata_size = 5;
@@ -768,7 +768,8 @@ static av_cold int aac_encode_init(AVCodecContext *avctx)
     lengths[1] = ff_aac_num_swb_128[i];
     for (i = 0; i < s->chan_map[0]; i++)
         grouping[i] = s->chan_map[i + 1] == TYPE_CPE;
-    if (ret = ff_psy_init(&s->psy, avctx, 2, sizes, lengths, s->chan_map[0], grouping))
+    if ((ret = ff_psy_init(&s->psy, avctx, 2, sizes, lengths,
+                           s->chan_map[0], grouping)) < 0)
         goto fail;
     s->psypp = ff_psy_preprocess_init(avctx);
     s->coder = &ff_aac_coders[s->options.aac_coder];

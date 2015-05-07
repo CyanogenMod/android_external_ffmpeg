@@ -391,6 +391,7 @@ void ff_h264_free_tables(H264Context *h, int free_rbsp)
     if (free_rbsp && h->DPB) {
         for (i = 0; i < H264_MAX_PICTURE_COUNT; i++)
             ff_h264_unref_picture(h, &h->DPB[i]);
+        memset(h->delayed_pic, 0, sizeof(h->delayed_pic));
         av_freep(&h->DPB);
     } else if (h->DPB) {
         for (i = 0; i < H264_MAX_PICTURE_COUNT; i++)
@@ -726,6 +727,7 @@ static int decode_init_thread_copy(AVCodecContext *avctx)
     memset(h->sps_buffers, 0, sizeof(h->sps_buffers));
     memset(h->pps_buffers, 0, sizeof(h->pps_buffers));
 
+    h->avctx          = avctx;
     h->rbsp_buffer[0] = NULL;
     h->rbsp_buffer[1] = NULL;
     h->rbsp_buffer_size[0] = 0;
@@ -990,6 +992,16 @@ int ff_pred_weight_table(H264Context *h)
     h->luma_log2_weight_denom = get_ue_golomb(&h->gb);
     if (h->sps.chroma_format_idc)
         h->chroma_log2_weight_denom = get_ue_golomb(&h->gb);
+
+    if (h->luma_log2_weight_denom > 7U) {
+        av_log(h->avctx, AV_LOG_ERROR, "luma_log2_weight_denom %d is out of range\n", h->luma_log2_weight_denom);
+        h->luma_log2_weight_denom = 0;
+    }
+    if (h->chroma_log2_weight_denom > 7U) {
+        av_log(h->avctx, AV_LOG_ERROR, "chroma_log2_weight_denom %d is out of range\n", h->chroma_log2_weight_denom);
+        h->chroma_log2_weight_denom = 0;
+    }
+
     luma_def   = 1 << h->luma_log2_weight_denom;
     chroma_def = 1 << h->chroma_log2_weight_denom;
 
@@ -1504,9 +1516,6 @@ static int decode_nal_units(H264Context *h, const uint8_t *buf, int buf_size,
                 continue;
 
 again:
-            if (   !(avctx->active_thread_type & FF_THREAD_FRAME)
-                || nals_needed >= nal_index)
-                h->au_pps_id = -1;
             /* Ignore per frame NAL unit type during extradata
              * parsing. Decoding slices is not possible in codec init
              * with frame-mt */
@@ -1542,8 +1551,14 @@ again:
                     ret = -1;
                     goto end;
                 }
-                if(!idr_cleared)
+                if(!idr_cleared) {
+                    if (h->current_slice && (avctx->active_thread_type & FF_THREAD_SLICE)) {
+                        av_log(h, AV_LOG_ERROR, "invalid mixed IDR / non IDR frames cannot be decoded in slice multithreading mode\n");
+                        ret = AVERROR_INVALIDDATA;
+                        goto end;
+                    }
                     idr(h); // FIXME ensure we don't lose some frames if there is reordering
+                }
                 idr_cleared = 1;
                 h->has_recovery_point = 1;
             case NAL_SLICE:
@@ -1551,6 +1566,10 @@ again:
                 hx->intra_gb_ptr      =
                 hx->inter_gb_ptr      = &hx->gb;
                 hx->data_partitioning = 0;
+
+                if (   nals_needed >= nal_index
+                    || (!(avctx->active_thread_type & FF_THREAD_FRAME) && !context_count))
+                    h->au_pps_id = -1;
 
                 if ((err = ff_h264_decode_slice_header(hx, h)))
                     break;
@@ -1673,7 +1692,9 @@ again:
                 break;
             case NAL_SPS:
                 init_get_bits(&h->gb, ptr, bit_length);
-                if (ff_h264_decode_seq_parameter_set(h) < 0 && (h->is_avc ? nalsize : 1)) {
+                if (ff_h264_decode_seq_parameter_set(h, 0) >= 0)
+                    break;
+                if (h->is_avc ? nalsize : 1) {
                     av_log(h->avctx, AV_LOG_DEBUG,
                            "SPS decoding failure, trying again with the complete NAL\n");
                     if (h->is_avc)
@@ -1682,8 +1703,11 @@ again:
                         break;
                     init_get_bits(&h->gb, &buf[buf_index + 1 - consumed],
                                   8*(next_avc - buf_index + consumed - 1));
-                    ff_h264_decode_seq_parameter_set(h);
+                    if (ff_h264_decode_seq_parameter_set(h, 0) >= 0)
+                        break;
                 }
+                init_get_bits(&h->gb, ptr, bit_length);
+                ff_h264_decode_seq_parameter_set(h, 1);
 
                 break;
             case NAL_PPS:
@@ -1716,8 +1740,14 @@ again:
             if (err < 0 || err == SLICE_SKIPED) {
                 if (err < 0)
                     av_log(h->avctx, AV_LOG_ERROR, "decode_slice_header error\n");
-                h->ref_count[0] = h->ref_count[1] = h->list_count = 0;
+                hx->ref_count[0] = hx->ref_count[1] = hx->list_count = 0;
             } else if (err == SLICE_SINGLETHREAD) {
+                if (context_count > 1) {
+                    ret = ff_h264_execute_decode_slices(h, context_count - 1);
+                    if (ret < 0 && (h->avctx->err_recognition & AV_EF_EXPLODE))
+                        goto end;
+                    context_count = 0;
+                }
                 /* Slice could not be decoded in parallel mode, copy down
                  * NAL unit stuff to context 0 and restart. Note that
                  * rbsp_buffer is not transferred, but since we no longer

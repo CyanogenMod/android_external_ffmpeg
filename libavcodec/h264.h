@@ -338,6 +338,7 @@ typedef struct H264Picture {
  * H264Context
  */
 typedef struct H264Context {
+    AVClass *av_class;
     AVCodecContext *avctx;
     MECmpContext mecc;
     VideoDSPContext vdsp;
@@ -538,6 +539,7 @@ typedef struct H264Context {
     int mb_x, mb_y;
     int resync_mb_x;
     int resync_mb_y;
+    int mb_index_end;
     int mb_skip_run;
     int mb_height, mb_width;
     int mb_stride;
@@ -777,7 +779,7 @@ int ff_h264_decode_sei(H264Context *h);
 /**
  * Decode SPS
  */
-int ff_h264_decode_seq_parameter_set(H264Context *h);
+int ff_h264_decode_seq_parameter_set(H264Context *h, int ignore_truncation);
 
 /**
  * compute profile from sps

@@ -53,6 +53,9 @@
 #include "riff.h"
 #include "url.h"
 
+#include "libavutil/ffversion.h"
+const char av_format_ffversion[] = "FFmpeg version " FFMPEG_VERSION;
+
 /**
  * @file
  * various utility functions for use within FFmpeg
@@ -415,6 +418,9 @@ int avformat_open_input(AVFormatContext **ps, const char *filename,
     if (options)
         av_dict_copy(&tmp, *options, 0);
 
+    if (s->pb) // must be before any goto fail
+        s->flags |= AVFMT_FLAG_CUSTOM_IO;
+
     if ((ret = av_opt_set_dict(s, &tmp)) < 0)
         goto fail;
 
@@ -594,6 +600,8 @@ static int update_wrap_reference(AVFormatContext *s, AVStream *st, int stream_in
         int default_stream_index = av_find_default_stream_index(s);
         if (s->streams[default_stream_index]->pts_wrap_reference == AV_NOPTS_VALUE) {
             for (i = 0; i < s->nb_streams; i++) {
+                if (av_find_program_from_stream(s, NULL, i))
+                    continue;
                 s->streams[i]->pts_wrap_reference = pts_wrap_reference;
                 s->streams[i]->pts_wrap_behavior = pts_wrap_behavior;
             }
@@ -1577,6 +1585,9 @@ int av_find_default_stream_index(AVFormatContext *s)
             else
                 score += 50;
         }
+
+        if (st->discard != AVDISCARD_ALL)
+            score += 200;
 
         if (score > best_score) {
             best_score = score;
@@ -2807,8 +2818,8 @@ static int get_std_framerate(int i)
  * And there are "variable" fps files this needs to detect as well. */
 static int tb_unreliable(AVCodecContext *c)
 {
-    if (c->time_base.den >= 101L * c->time_base.num ||
-        c->time_base.den <    5L * c->time_base.num ||
+    if (c->time_base.den >= 101LL * c->time_base.num ||
+        c->time_base.den <    5LL * c->time_base.num ||
         // c->codec_tag == AV_RL32("DIVX") ||
         // c->codec_tag == AV_RL32("XVID") ||
         c->codec_tag == AV_RL32("mp4v") ||
@@ -2824,6 +2835,7 @@ int ff_alloc_extradata(AVCodecContext *avctx, int size)
     int ret;
 
     if (size < 0 || size >= INT32_MAX - FF_INPUT_BUFFER_PADDING_SIZE) {
+        avctx->extradata = NULL;
         avctx->extradata_size = 0;
         return AVERROR(EINVAL);
     }
@@ -3644,6 +3656,11 @@ AVStream *avformat_new_stream(AVFormatContext *s, const AVCodec *c)
     st->info->last_dts = AV_NOPTS_VALUE;
 
     st->codec = avcodec_alloc_context3(c);
+    if (!st->codec) {
+        av_free(st->info);
+        av_free(st);
+        return NULL;
+    }
     if (s->iformat) {
         /* no default bitrate if decoding */
         st->codec->bit_rate = 0;

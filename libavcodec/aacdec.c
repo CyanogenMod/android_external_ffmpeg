@@ -425,7 +425,7 @@ static uint64_t sniff_channel_order(uint8_t (*layout_map)[3], int tags)
  * Save current output configuration if and only if it has been locked.
  */
 static void push_output_configuration(AACContext *ac) {
-    if (ac->oc[1].status == OC_LOCKED) {
+    if (ac->oc[1].status == OC_LOCKED || ac->oc[0].status == OC_NONE) {
         ac->oc[0] = ac->oc[1];
     }
     ac->oc[1].status = OC_NONE;
@@ -904,7 +904,7 @@ static int decode_eld_specific_config(AACContext *ac, AVCodecContext *avctx,
         if (len == 15 + 255)
             len += get_bits(gb, 16);
         if (get_bits_left(gb) < len * 8 + 4) {
-            av_log(ac->avctx, AV_LOG_ERROR, overread_err);
+            av_log(avctx, AV_LOG_ERROR, overread_err);
             return AVERROR_INVALIDDATA;
         }
         skip_bits_long(gb, 8 * len);

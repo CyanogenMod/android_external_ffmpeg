@@ -174,7 +174,7 @@ static int nprobe(AVFormatContext *s, uint8_t *enc_header, unsigned size,
     taglen  = AV_RB32(&enc_header[pos + 32]);
     datalen = AV_RB32(&enc_header[pos + 36]) >> 4;
 
-    pos += 44L + taglen;
+    pos += 44LL + taglen;
 
     if (pos + (((uint64_t)datalen) << 4) > size)
         return -1;
@@ -464,7 +464,7 @@ static int oma_read_seek(struct AVFormatContext *s,
                          int stream_index, int64_t timestamp, int flags)
 {
     OMAContext *oc = s->priv_data;
-    int err = ff_pcm_read_seek(s, stream_index, timestamp, flags);
+    int64_t err = ff_pcm_read_seek(s, stream_index, timestamp, flags);
 
     if (!oc->encrypted)
         return err;
