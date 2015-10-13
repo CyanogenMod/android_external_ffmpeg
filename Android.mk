@@ -8,4 +8,6 @@
 #      http://www.gnu.org/licenses/gpl.html
 #
 
+ifeq ($(TARGET_USES_STAGEFRIGHT_PLUGINS),true)
 include $(call all-subdir-makefiles)
+endif
