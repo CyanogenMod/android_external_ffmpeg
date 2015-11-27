@@ -1097,6 +1097,7 @@ static int h264_slice_header_init(H264Context *h)
         nb_slices = max_slices;
     }
     h->slice_context_count = nb_slices;
+    h->max_contexts = FFMIN(h->max_contexts, nb_slices);
 
     if (!HAVE_THREADS || !(h->avctx->active_thread_type & FF_THREAD_SLICE)) {
         ret = ff_h264_slice_context_init(h, &h->slice_ctx[0]);
@@ -1177,6 +1178,15 @@ int ff_h264_decode_slice_header(H264Context *h, H264SliceContext *sl)
                 av_log(h->avctx, AV_LOG_ERROR, "Too many fields\n");
                 return AVERROR_INVALIDDATA;
             }
+            if (h->max_contexts > 1) {
+                if (!h->single_decode_warning) {
+                    av_log(h->avctx, AV_LOG_WARNING, "Cannot decode multiple access units as slice threads\n");
+                    h->single_decode_warning = 1;
+                }
+                h->max_contexts = 1;
+                return SLICE_SINGLETHREAD;
+            }
+
             if (h->cur_pic_ptr && FIELD_PICTURE(h) && h->first_field) {
                 ret = ff_h264_field_end(h, h->slice_ctx, 1);
                 h->current_slice = 0;
