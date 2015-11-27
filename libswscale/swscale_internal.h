@@ -1058,6 +1058,8 @@ void ff_init_vscale_pfn(SwsContext *c, yuv2planar1_fn yuv2plane1, yuv2planarX_fn
 #define MAX_LINES_AHEAD 4
 
 // enable use of refactored scaler code
+// (disabling on Android due to CTS failures)
+#ifndef __ANDROID__
 #define NEW_FILTER
-
+#endif
 #endif /* SWSCALE_SWSCALE_INTERNAL_H */
