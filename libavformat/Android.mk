@@ -26,7 +26,14 @@ LOCAL_SHARED_LIBRARIES +=		\
 	libavcodec
 
 LOCAL_MULTILIB := $(FFMPEG_MULTILIB)
+# We probably should make this a default. Mediaserver is still fully 32
+ifeq ($(BOARD_FFMPEG_32BIT_ONLY),true)
+LOCAL_32_BIT_ONLY := true
+endif
 include $(BUILD_SHARED_LIBRARY)
+
+# We probably should make this a default. Mediaserver is still fully 32
+ifneq ($(BOARD_FFMPEG_32BIT_ONLY),true)
 
 include $(CLEAR_VARS)
 FFMPEG_MULTILIB := 64
@@ -44,4 +51,6 @@ LOCAL_SHARED_LIBRARIES +=		\
 	libavcodec
 
 LOCAL_MULTILIB := $(FFMPEG_MULTILIB)
+
 include $(BUILD_SHARED_LIBRARY)
+endif
