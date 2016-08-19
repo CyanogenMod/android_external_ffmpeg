@@ -2750,7 +2750,12 @@ static void mov_build_index(MOVContext *mov, AVStream *st)
                 sample_size = sc->stsz_sample_size > 0 ? sc->stsz_sample_size : sc->sample_sizes[current_sample];
                 if (sc->pseudo_stream_id == -1 ||
                    sc->stsc_data[stsc_index].id - 1 == sc->pseudo_stream_id) {
-                    AVIndexEntry *e = &st->index_entries[st->nb_index_entries++];
+                    AVIndexEntry *e;
+                    if (sample_size > 0x3FFFFFFF) {
+                        av_log(mov->fc, AV_LOG_ERROR, "Sample size %u is too large\n", sample_size);
+                        return;
+                    }
+                    e = &st->index_entries[st->nb_index_entries++];
                     e->pos = current_offset;
                     e->timestamp = current_dts;
                     e->size = sample_size;
@@ -2873,6 +2878,10 @@ static void mov_build_index(MOVContext *mov, AVStream *st)
 
                 if (st->nb_index_entries >= total) {
                     av_log(mov->fc, AV_LOG_ERROR, "wrong chunk count %d\n", total);
+                    return;
+                }
+                if (size > 0x3FFFFFFF) {
+                    av_log(mov->fc, AV_LOG_ERROR, "Sample size %u is too large\n", size);
                     return;
                 }
                 e = &st->index_entries[st->nb_index_entries++];
@@ -3609,7 +3618,7 @@ static int mov_read_trun(MOVContext *c, AVIOContext *pb, MOVAtom atom)
                 }
                 av_log(c->fc, AV_LOG_DEBUG, "calculated into dts %"PRId64"\n", dts);
             } else {
-                dts = frag->time;
+                dts = frag->time - sc->time_offset;
                 av_log(c->fc, AV_LOG_DEBUG, "found frag time %"PRId64
                         ", using it for dts\n", dts);
             }
@@ -3666,7 +3675,7 @@ static int mov_read_sidx(MOVContext *c, AVIOContext *pb, MOVAtom atom)
     version = avio_r8(pb);
     if (version > 1) {
         avpriv_request_sample(c->fc, "sidx version %u", version);
-        return AVERROR_PATCHWELCOME;
+        return 0;
     }
 
     avio_rb24(pb); // flags
@@ -3679,8 +3688,8 @@ static int mov_read_sidx(MOVContext *c, AVIOContext *pb, MOVAtom atom)
         }
     }
     if (!st) {
-        av_log(c->fc, AV_LOG_ERROR, "could not find corresponding track id %d\n", track_id);
-        return AVERROR_INVALIDDATA;
+        av_log(c->fc, AV_LOG_WARNING, "could not find corresponding track id %d\n", track_id);
+        return 0;
     }
 
     sc = st->priv_data;

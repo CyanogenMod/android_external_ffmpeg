@@ -1656,8 +1656,8 @@ again:
                     av_log(h->avctx, AV_LOG_ERROR, "decode_slice_header error\n");
                 sl->ref_count[0] = sl->ref_count[1] = sl->list_count = 0;
             } else if (err == SLICE_SINGLETHREAD) {
-                if (context_count > 1) {
-                    ret = ff_h264_execute_decode_slices(h, context_count - 1);
+                if (context_count > 0) {
+                    ret = ff_h264_execute_decode_slices(h, context_count);
                     if (ret < 0 && (h->avctx->err_recognition & AV_EF_EXPLODE))
                         goto end;
                     context_count = 0;
@@ -1678,6 +1678,47 @@ again:
 
     ret = 0;
 end:
+
+#if CONFIG_ERROR_RESILIENCE
+    sl = h->slice_ctx;
+    /*
+     * FIXME: Error handling code does not seem to support interlaced
+     * when slices span multiple rows
+     * The ff_er_add_slice calls don't work right for bottom
+     * fields; they cause massive erroneous error concealing
+     * Error marking covers both fields (top and bottom).
+     * This causes a mismatched s->error_count
+     * and a bad error table. Further, the error count goes to
+     * INT_MAX when called for bottom field, because mb_y is
+     * past end by one (callers fault) and resync_mb_y != 0
+     * causes problems for the first MB line, too.
+     */
+    if (!FIELD_PICTURE(h) && h->current_slice && !h->sps.new && h->enable_er) {
+        int use_last_pic = h->last_pic_for_ec.f->buf[0] && !sl->ref_count[0];
+
+        ff_h264_set_erpic(&sl->er.cur_pic, h->cur_pic_ptr);
+
+        if (use_last_pic) {
+            ff_h264_set_erpic(&sl->er.last_pic, &h->last_pic_for_ec);
+            sl->ref_list[0][0].parent = &h->last_pic_for_ec;
+            memcpy(sl->ref_list[0][0].data, h->last_pic_for_ec.f->data, sizeof(sl->ref_list[0][0].data));
+            memcpy(sl->ref_list[0][0].linesize, h->last_pic_for_ec.f->linesize, sizeof(sl->ref_list[0][0].linesize));
+            sl->ref_list[0][0].reference = h->last_pic_for_ec.reference;
+        } else if (sl->ref_count[0]) {
+            ff_h264_set_erpic(&sl->er.last_pic, sl->ref_list[0][0].parent);
+        } else
+            ff_h264_set_erpic(&sl->er.last_pic, NULL);
+
+        if (sl->ref_count[1])
+            ff_h264_set_erpic(&sl->er.next_pic, sl->ref_list[1][0].parent);
+
+        sl->er.ref_count = sl->ref_count[0];
+
+        ff_er_frame_end(&sl->er);
+        if (use_last_pic)
+            memset(&sl->ref_list[0][0], 0, sizeof(sl->ref_list[0][0]));
+    }
+#endif /* CONFIG_ERROR_RESILIENCE */
     /* clean up */
     if (h->cur_pic_ptr && !h->droppable) {
         ff_thread_report_progress(&h->cur_pic_ptr->tf, INT_MAX,
@@ -1740,7 +1781,7 @@ static int is_extra(const uint8_t *buf, int buf_size)
     const uint8_t *p= buf+6;
     while(cnt--){
         int nalsize= AV_RB16(p) + 2;
-        if(nalsize > buf_size - (p-buf) || p[2]!=0x67)
+        if(nalsize > buf_size - (p-buf) || (p[2] & 0x9F) != 7)
             return 0;
         p += nalsize;
     }
@@ -1749,7 +1790,7 @@ static int is_extra(const uint8_t *buf, int buf_size)
         return 0;
     while(cnt--){
         int nalsize= AV_RB16(p) + 2;
-        if(nalsize > buf_size - (p-buf) || p[2]!=0x68)
+        if(nalsize > buf_size - (p-buf) || (p[2] & 0x9F) != 8)
             return 0;
         p += nalsize;
     }

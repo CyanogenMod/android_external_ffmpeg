@@ -373,8 +373,8 @@ static void ffm_set_write_index(AVFormatContext *s, int64_t pos,
                                 int64_t file_size)
 {
     av_opt_set_int(s, "server_attached", 1, AV_OPT_SEARCH_CHILDREN);
-    av_opt_set_int(s, "write_index", pos, AV_OPT_SEARCH_CHILDREN);
-    av_opt_set_int(s, "file_size", file_size, AV_OPT_SEARCH_CHILDREN);
+    av_opt_set_int(s, "ffm_write_index", pos, AV_OPT_SEARCH_CHILDREN);
+    av_opt_set_int(s, "ffm_file_size", file_size, AV_OPT_SEARCH_CHILDREN);
 }
 
 static char *ctime1(char *buf2, size_t buf_size)
@@ -3858,6 +3858,8 @@ drop:
             if (avformat_write_header(s, NULL) < 0) {
                 http_log("Container doesn't support the required parameters\n");
                 avio_closep(&s->pb);
+                s->streams = NULL;
+                s->nb_streams = 0;
                 avformat_free_context(s);
                 goto bail;
             }
@@ -3973,6 +3975,7 @@ int main(int argc, char **argv)
     int cfg_parsed;
     int ret = EXIT_FAILURE;
 
+    init_dynload();
 
     config.filename = av_strdup("/etc/ffserver.conf");
 

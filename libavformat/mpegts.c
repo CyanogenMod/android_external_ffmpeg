@@ -1769,8 +1769,11 @@ int ff_parse_mpeg2_descriptor(AVFormatContext *fc, AVStream *st, int stream_type
     case 0x05: /* registration descriptor */
         st->codec->codec_tag = bytestream_get_le32(pp);
         av_log(fc, AV_LOG_TRACE, "reg_desc=%.4s\n", (char *)&st->codec->codec_tag);
-        if (st->codec->codec_id == AV_CODEC_ID_NONE || st->request_probe > 0)
+        if (st->codec->codec_id == AV_CODEC_ID_NONE || st->request_probe > 0) {
             mpegts_find_stream_type(st, st->codec->codec_tag, REGD_types);
+            if (st->codec->codec_tag == MKTAG('B', 'S', 'S', 'D'))
+                st->request_probe = 50;
+        }
         break;
     case 0x52: /* stream identifier descriptor */
         st->stream_identifier = 1 + get8(pp, desc_end);
@@ -2441,7 +2444,7 @@ static int mpegts_probe(AVProbeData *p)
 #define CHECK_COUNT 10
 #define CHECK_BLOCK 100
 
-    if (check_count < CHECK_COUNT)
+    if (!check_count)
         return 0;
 
     for (i = 0; i<check_count; i+=CHECK_BLOCK) {
@@ -2459,10 +2462,17 @@ static int mpegts_probe(AVProbeData *p)
 
     ff_dlog(0, "TS score: %d %d\n", sumscore, maxscore);
 
-    if      (sumscore > 6) return AVPROBE_SCORE_MAX   + sumscore - CHECK_COUNT;
-    else if (maxscore > 6) return AVPROBE_SCORE_MAX/2 + sumscore - CHECK_COUNT;
-    else
+    if        (check_count > CHECK_COUNT && sumscore > 6) {
+        return AVPROBE_SCORE_MAX   + sumscore - CHECK_COUNT;
+    } else if (check_count >= CHECK_COUNT && sumscore > 6) {
+        return AVPROBE_SCORE_MAX/2 + sumscore - CHECK_COUNT;
+    } else if (check_count >= CHECK_COUNT && maxscore > 6) {
+        return AVPROBE_SCORE_MAX/2 + sumscore - CHECK_COUNT;
+    } else if (sumscore > 6) {
+        return 2;
+    } else {
         return 0;
+    }
 }
 
 /* return the 90kHz PCR and the extension for the 27MHz PCR. return

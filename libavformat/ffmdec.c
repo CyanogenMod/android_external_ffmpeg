@@ -27,6 +27,7 @@
 #include "libavutil/opt.h"
 #include "libavutil/avassert.h"
 #include "libavutil/avstring.h"
+#include "libavutil/pixdesc.h"
 #include "avformat.h"
 #include "internal.h"
 #include "ffm.h"
@@ -377,6 +378,11 @@ static int ffm2_read_header(AVFormatContext *s)
             codec->height = avio_rb16(pb);
             codec->gop_size = avio_rb16(pb);
             codec->pix_fmt = avio_rb32(pb);
+            if (!av_pix_fmt_desc_get(codec->pix_fmt)) {
+                av_log(s, AV_LOG_ERROR, "Invalid pix fmt id: %d\n", codec->pix_fmt);
+                codec->pix_fmt = AV_PIX_FMT_NONE;
+                goto fail;
+            }
             codec->qmin = avio_r8(pb);
             codec->qmax = avio_r8(pb);
             codec->max_qdiff = avio_r8(pb);
@@ -569,6 +575,11 @@ static int ffm_read_header(AVFormatContext *s)
             codec->height = avio_rb16(pb);
             codec->gop_size = avio_rb16(pb);
             codec->pix_fmt = avio_rb32(pb);
+            if (!av_pix_fmt_desc_get(codec->pix_fmt)) {
+                av_log(s, AV_LOG_ERROR, "Invalid pix fmt id: %d\n", codec->pix_fmt);
+                codec->pix_fmt = AV_PIX_FMT_NONE;
+                goto fail;
+            }
             codec->qmin = avio_r8(pb);
             codec->qmax = avio_r8(pb);
             codec->max_qdiff = avio_r8(pb);
@@ -775,8 +786,8 @@ static int ffm_probe(AVProbeData *p)
 
 static const AVOption options[] = {
     {"server_attached", NULL, offsetof(FFMContext, server_attached), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, AV_OPT_FLAG_EXPORT },
-    {"ffm_write_index", NULL, offsetof(FFMContext, write_index), AV_OPT_TYPE_INT64, {.i64 = 0}, 0, 1, AV_OPT_FLAG_EXPORT },
-    {"ffm_file_size", NULL, offsetof(FFMContext, file_size), AV_OPT_TYPE_INT64, {.i64 = 0}, 0, 1, AV_OPT_FLAG_EXPORT },
+    {"ffm_write_index", NULL, offsetof(FFMContext, write_index), AV_OPT_TYPE_INT64, {.i64 = 0}, 0, INT64_MAX, AV_OPT_FLAG_EXPORT },
+    {"ffm_file_size", NULL, offsetof(FFMContext, file_size), AV_OPT_TYPE_INT64, {.i64 = 0}, 0, INT64_MAX, AV_OPT_FLAG_EXPORT },
     { NULL },
 };
 

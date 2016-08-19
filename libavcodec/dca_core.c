@@ -1760,6 +1760,7 @@ static int parse_x96_frame_exss(DCACoreDecoder *s)
         return ret;
 
     // Channel set data
+    s->x96_nchannels = 0;
     for (i = 0, x96_base_ch = 0; i < x96_nchsets; i++) {
         header_pos = get_bits_count(&s->gb);
 
@@ -1899,9 +1900,10 @@ static int parse_optional_info(DCACoreDecoder *s)
                 }
             }
 
-            if (s->avctx->err_recognition & AV_EF_EXPLODE) {
+            if (!s->xch_pos) {
                 av_log(s->avctx, AV_LOG_ERROR, "XCH sync word not found\n");
-                return AVERROR_INVALIDDATA;
+                if (s->avctx->err_recognition & AV_EF_EXPLODE)
+                    return AVERROR_INVALIDDATA;
             }
             break;
 
@@ -1921,9 +1923,10 @@ static int parse_optional_info(DCACoreDecoder *s)
                 }
             }
 
-            if (s->avctx->err_recognition & AV_EF_EXPLODE) {
+            if (!s->x96_pos) {
                 av_log(s->avctx, AV_LOG_ERROR, "X96 sync word not found\n");
-                return AVERROR_INVALIDDATA;
+                if (s->avctx->err_recognition & AV_EF_EXPLODE)
+                    return AVERROR_INVALIDDATA;
             }
             break;
 
@@ -1946,9 +1949,10 @@ static int parse_optional_info(DCACoreDecoder *s)
                 }
             }
 
-            if (s->avctx->err_recognition & AV_EF_EXPLODE) {
+            if (!s->xxch_pos) {
                 av_log(s->avctx, AV_LOG_ERROR, "XXCH sync word not found\n");
-                return AVERROR_INVALIDDATA;
+                if (s->avctx->err_recognition & AV_EF_EXPLODE)
+                    return AVERROR_INVALIDDATA;
             }
             break;
         }
