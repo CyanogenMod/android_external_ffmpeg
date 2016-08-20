@@ -38,7 +38,7 @@
 #define MAC_FORMAT_FLAG_HAS_SEEK_ELEMENTS    16 // has the number of seek elements after the peak level
 #define MAC_FORMAT_FLAG_CREATE_WAV_HEADER    32 // create the wave header on decompression (not stored)
 
-#define APE_EXTRADATA_SIZE 24
+#define APE_EXTRADATA_SIZE 6
 
 typedef struct APEFrame {
     int64_t pos;
@@ -365,10 +365,6 @@ static int ape_read_header(AVFormatContext * s)
     AV_WL16(st->codec->extradata + 0, ape->fileversion);
     AV_WL16(st->codec->extradata + 2, ape->compressiontype);
     AV_WL16(st->codec->extradata + 4, ape->formatflags);
-    AV_WL32(st->codec->extradata + 8, ape->blocksperframe);
-    AV_WL32(st->codec->extradata + 12, ape->finalframeblocks);
-    AV_WL32(st->codec->extradata + 16, ape->totalframes);
-    AV_WL32(st->codec->extradata + 20, ape->seektable ? 1 : 0);
 
     pts = 0;
     for (i = 0; i < ape->totalframes; i++) {

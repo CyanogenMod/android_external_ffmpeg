@@ -217,7 +217,7 @@ static av_cold int ape_decode_init(AVCodecContext *avctx)
     APEContext *s = avctx->priv_data;
     int i;
 
-    if (avctx->extradata_size != 24) {
+    if (avctx->extradata_size != 6) {
         av_log(avctx, AV_LOG_ERROR, "Incorrect extradata\n");
         return AVERROR(EINVAL);
     }
