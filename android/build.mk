@@ -94,6 +94,9 @@ $(GEN): $(intermediates)/%.o: $(LOCAL_PATH)/%.asm $(SUBDIR)config.asm
 LOCAL_GENERATED_SOURCES += $(GEN)
 endif
 
+LOCAL_SDCLANG := false
+LOCAL_CLANG := true
+
 LOCAL_CFLAGS += \
 	-O3 -std=c99 -fno-math-errno -fno-signed-zeros -fomit-frame-pointer \
 	-Wno-pointer-to-int-cast -Wstrict-prototypes -Wempty-body -Wno-parentheses \
