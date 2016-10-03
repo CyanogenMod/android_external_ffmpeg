@@ -1,7 +1,39 @@
 Entries are sorted chronologically from oldest to youngest within each release,
 releases are sorted from youngest to oldest.
 
+version 3.0.4:
+- avformat/avidec: Check nb_streams in read_gab2_sub()
+- avformat/avidec: Remove ancient assert
+- avformat/avidec: Fix memleak with dv in avi
+- lavc/movtextdec.c: Avoid infinite loop on invalid data.
+- avcodec/ansi: Check dimensions
+- avcodec/cavsdsp: use av_clip_uint8() for idct
+- avformat/movenc: Check packet in mov_write_single_packet() too
+- avformat/movenc: Factor check_pkt() out
+- avformat/utils: fix timebase error in avformat_seek_file()
+- avcodec/g726: Add missing ADDB output mask
+- avcodec/avpacket: clear side_data_elems
+- avformat/movenc: Check first DTS similar to dts difference
+- avcodec/ccaption_dec: Use simple array instead of AVBuffer
+- avformat/mov: Fix potential integer overflow in mov_read_keys
+- swscale/swscale_unscaled: Try to fix Rgb16ToPlanarRgb16Wrapper() with slices
+- swscale/swscale_unscaled: Fix packed_16bpc_bswap() with slices
+- lavf/utils: Avoid an overflow for huge negative durations.
+
 version 3.0.3:
+- avformat/avidec: Fix infinite loop in avi_read_nikon()
+- avcodec/aacenc: Tighter input checks
+- avformat/wtvdec: Check pointer before use
+- libavcodec/wmalosslessdec: Check the remaining bits
+- avcodec/diracdec: Check numx/y
+- avcodec/cfhd: Increase minimum band dimension to 3
+- avcodec/indeo2: check ctab
+- avformat/swfdec: Fix inflate() error code check
+- avcodec/rawdec: Fix bits_per_coded_sample checks
+- lavc/mjpegdec: Do not skip reading quantization tables.
+- cmdutils: fix implicit declaration of SetDllDirectory function
+- cmdutils: check for SetDllDirectory() availability
+- avcodec/h264: Put context_count check back
 - cmdutils: remove the current working directory from the DLL search path on win32
 - avcodec/raw: Fix decoding of ilacetest.mov
 - avcodec/ffv1enc: Fix assertion failure with non zero bits per sample
